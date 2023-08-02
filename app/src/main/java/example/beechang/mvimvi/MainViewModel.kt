@@ -40,7 +40,6 @@ class MainViewModel(
     private suspend fun handleEvent(event: MainEvent, collector: FlowCollector<MainEvent>) {
         when (event) {
             is MainEvent.Toast -> {
-                Log.e("toast" , "toast")
                 _sideEffects.send(MainEffect.Toast("toast start"))
             }
 
@@ -57,7 +56,6 @@ class MainViewModel(
                 if (Random.nextFloat() <= 0.7) { // 70% error or success
                     current.copy(fruit = repository.getData())
                 } else { // fail go sideeffect
-                    Log.e("toast" , "toast")
                     _sideEffects.send(MainEffect.Fail)
                     current
                 }
