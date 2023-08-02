@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
@@ -27,44 +28,52 @@ class MainViewModel(
 
     private val mainEvent = MutableSharedFlow<MainEvent>()
 
-     val mainState : StateFlow<MainState> = mainEvent
-        .transform { event -> handleEvent(event, this) }
-        .scan(MainState(), ::reduce)
+    val mainState: StateFlow<MainState> = mainEvent
+        .transform { event -> handleEvent(event, this) } //사이드이팩트 확인
+        .map { event -> processBusinessLogic(event) }  // 비즈니스 로직 처리
+        .scan(MainState(), ::reduce) // 상태생성
         .stateIn(viewModelScope, SharingStarted.Eagerly, MainState())
 
     private val _sideEffects = Channel<MainEffect>()
     val sideEffects = _sideEffects.receiveAsFlow()
 
-    suspend fun intent(event: MainEvent) = mainEvent.emit(event)
+    suspend fun intent(event: MainEvent) = mainEvent.emit(event) //1. 유저이벤트 트리거
 
     private suspend fun handleEvent(event: MainEvent, collector: FlowCollector<MainEvent>) {
         when (event) {
-            is MainEvent.Toast -> {
+            is MainEvent.Toast -> { //사이드 이팩트인경우 사이드이팩트 스트림으로 처리
                 _sideEffects.send(MainEffect.Toast("toast start"))
             }
 
-            is MainEvent.Count,  is MainEvent.GetFruit -> {
+            is MainEvent.Count, is MainEvent.GetFruit -> {
                 collector.emit(event)
             }
         }
     }
 
-    private suspend fun reduce(current: MainState, event: MainEvent): MainState {
+    private suspend fun processBusinessLogic(event: MainEvent): MainEvent {
         return when (event) {
-            is MainEvent.Count -> current.copy(count = current.count + 1) // count ++
+            is MainEvent.Count -> event.copy(count = event.count + 1)
             is MainEvent.GetFruit -> {
-                if (Random.nextFloat() <= 0.7) { // 70% error or success
-                    current.copy(fruit = repository.getData())
-                } else { // fail go sideeffect
+                if (Random.nextFloat() <= 0.7) {
+                    event.copy(fruit = repository.getData())
+                } else {
                     _sideEffects.send(MainEffect.Fail)
-                    current
+                    event
                 }
             }
+            else -> event
+        }
+    }
+
+    private fun reduce(current: MainState, event: MainEvent): MainState {
+        return when (event) {
+            is MainEvent.Count -> current.copy(count = event.count)
+            is MainEvent.GetFruit -> current.copy(fruit = event.fruit)
             else -> {
                 current
             }
         }
     }
-
 }
 
