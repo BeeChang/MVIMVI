@@ -128,7 +128,7 @@ fun FruitView(
         Button(
             onClick = {
                 coroutineScope.launch {
-                    viewModel.intent(MainEvent.GetFruit)
+                    viewModel.intent(MainEvent.GetFruit(fruit))
                 }
             },
         ) {
